@@ -2,6 +2,7 @@
 cd ../
 python main.py    --version 2\
                   --default_root_dir output \
+                  --pretrained_model t5-small \
                   --run train \
                   --max_epochs 100 \
                   --accelerator gpu \

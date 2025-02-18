@@ -88,6 +88,7 @@ class LitGrapher(pl.LightningModule):
         self.noedge_id = noedge_id
         self.eval_dir=eval_dir
         self.lr = lr
+        self.validation_outputs = []
 
     def training_step(self, batch, batch_idx):
 
@@ -181,13 +182,16 @@ class LitGrapher(pl.LightningModule):
         self.log_dict(scores)
 
     def validation_step(self, batch, batch_idx):
-        return self.eval_step(batch, batch_idx, 'valid')
+        outputs = self.eval_step(batch, batch_idx, 'valid')        
+        self.validation_outputs.append(outputs)
+        return outputs
 
     def test_step(self, batch, batch_idx):
         return self.eval_step(batch, batch_idx, 'test')
-
-    def validation_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs, 'valid')
+    
+    def on_validation_epoch_end(self):
+        self.eval_epoch_end(self.validation_outputs, 'valid')    
+        self.validation_outputs.clear()
 
     def test_epoch_end(self, outputs):
         self.eval_epoch_end(outputs, 'test')

@@ -1,3 +1,4 @@
+import importlib
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -20,13 +21,15 @@ class Grapher(nn.Module):
                         ):
         super().__init__()
 
+        transformer_module = importlib.import_module(transformer_class[:transformer_class.rfind(".")])  # noqa: F821
+        transformer_class = getattr(transformer_module, transformer_class[transformer_class.rfind(".")+1:])
         self.transformer = transformer_class.from_pretrained(transformer_name, cache_dir=cache_dir)
 
         self.hidden_dim = self.transformer.config.d_model
         self.max_nodes = max_nodes
         self.edges_as_classes = edges_as_classes
         self.node_sep_id = node_sep_id
-        self.default_seq_len_edge = default_seq_len_edge
+        self.default_seq_len_edge = default_seq_len_edge        
 
         if self.edges_as_classes:
             self.edges = EdgesClass(self.hidden_dim, num_classes, dropout_rate, num_layers)

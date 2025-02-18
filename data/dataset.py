@@ -1,3 +1,4 @@
+import importlib
 import pytorch_lightning as pl
 from corpusreader.benchmark_reader import Benchmark
 from corpusreader.benchmark_reader import select_files
@@ -13,7 +14,7 @@ import torch
 class GraphDataModule(pl.LightningDataModule):
 
     def __init__(self,
-                 tokenizer_class,
+                 tokenizer_class: str,
                  tokenizer_name,
                  cache_dir,
                  data_path,
@@ -25,6 +26,10 @@ class GraphDataModule(pl.LightningDataModule):
                  edges_as_classes):
         super().__init__()
 
+        tokenizer_module = importlib.import_module(tokenizer_class[:tokenizer_class.rfind(".")]) 
+        tokenizer_class = getattr(tokenizer_module, tokenizer_class[tokenizer_class.rfind(".")+1:])
+
+        self.cache_dir = cache_dir
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_name, cache_dir=cache_dir)
         self.tokenizer.add_tokens('__no_node__')
         self.tokenizer.add_tokens('__no_edge__')
@@ -39,6 +44,7 @@ class GraphDataModule(pl.LightningDataModule):
         self.output_path = os.path.join(data_path, 'processed')
         os.makedirs(self.output_path, exist_ok=True)
         self.dataset = dataset
+        self.prepared = False
 
     def prepareWebNLG(self):
 
@@ -98,17 +104,45 @@ class GraphDataModule(pl.LightningDataModule):
     def prepare_data(self):
         if self.dataset == 'webnlg':
             self.prepareWebNLG()
+            self.prepared = True
         else:
             raise NotImplementedError(f'Unknown dataset {self.dataset}. Only WebNLG dataset has been implemented')
+        
+
+    @property
+    def dataset_train(self):
+        if getattr(self, "_dataset_train", None) is None:
+            self.setup('fit')
+        
+        return self._dataset_train
+    
+
+    @property
+    def dataset_dev(self):
+        if getattr(self, "_dataset_dev", None) is None:
+            self.setup('validate')
+        
+        return self._dataset_dev
+        
+
+    @property
+    def dataset_test(self):
+        if getattr(self, "_dataset_test", None) is None:
+            self.setup('test')
+        
+        return self._dataset_test
+
 
     def setup(self, stage=None):
+        if not self.prepared:
+            self.prepare_data()
 
         edge_classes_path = os.path.join(self.output_path, 'edge.classes')
 
         if stage == 'fit':
             text_path = os.path.join(self.output_path, 'train.text')
             graph_path = os.path.join(self.output_path, 'train.graph')
-            self.dataset_train = GraphDataset(tokenizer=self.tokenizer,
+            self._dataset_train = GraphDataset(tokenizer=self.tokenizer,
                                                text_data_path=text_path,
                                                graph_data_path=graph_path,
                                                edge_classes_path=edge_classes_path,
@@ -118,7 +152,7 @@ class GraphDataModule(pl.LightningDataModule):
         elif stage == 'validate':
             text_path = os.path.join(self.output_path, 'dev.text')
             graph_path = os.path.join(self.output_path, 'dev.graph')
-            self.dataset_dev = GraphDataset(tokenizer=self.tokenizer,
+            self._dataset_dev = GraphDataset(tokenizer=self.tokenizer,
                                             text_data_path=text_path,
                                             graph_data_path=graph_path,
                                             edge_classes_path=edge_classes_path,
@@ -129,7 +163,7 @@ class GraphDataModule(pl.LightningDataModule):
         elif stage == 'test':
             text_path = os.path.join(self.output_path, 'test.text')
             graph_path = os.path.join(self.output_path, 'test.graph')
-            self.dataset_test = GraphDataset(tokenizer=self.tokenizer,
+            self._dataset_test = GraphDataset(tokenizer=self.tokenizer,
                                              text_data_path=text_path,
                                              graph_data_path=graph_path,
                                              edge_classes_path=edge_classes_path,
