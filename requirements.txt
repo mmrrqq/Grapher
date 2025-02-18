@@ -1,0 +1,4 @@
+nervaluate
+sentencepiece
+jsonargparse[signatures]>=4.27.7
+rich
