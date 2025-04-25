@@ -44,8 +44,9 @@ def main():
         assert os.path.exists(checkpoint_model_path), 'Provided checkpoint does not exists, cannot do inference'
 
         grapher = LitGrapher.load_from_checkpoint(checkpoint_path=checkpoint_model_path)
+        print(checkpoint_model_path)
 
-        tokenizer = T5Tokenizer.from_pretrained(grapher.transformer_name, cache_dir=grapher.cache_dir)
+        tokenizer = T5Tokenizer.from_pretrained(grapher.transformer_name)
         tokenizer.add_tokens('__no_node__')
         tokenizer.add_tokens('__no_edge__')
         tokenizer.add_tokens('__node_sep__')
@@ -53,7 +54,7 @@ def main():
         text_tok = tokenizer([args.inference_input_text],
                              add_special_tokens=True,
                              padding=True,
-                             return_tensors='pt')
+                             return_tensors='pt').to("cuda")
 
         text_input_ids, mask = text_tok['input_ids'], text_tok['attention_mask']
 

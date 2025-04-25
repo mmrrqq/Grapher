@@ -36,6 +36,8 @@ class Grapher(nn.Module):
         else:
             self.edges = EdgesGen(self.hidden_dim, vocab_size, bos_token_id)
 
+        self.positions = PositionDistribution(input_dim=self.hidden_dim)
+
     def split_nodes(self, output_ids, features):
 
         # features: batch_size x seq_len x hidden_dim
@@ -45,6 +47,9 @@ class Grapher(nn.Module):
         split_features = torch.zeros((self.max_nodes, batch_size, self.hidden_dim), device=features.device, dtype=features.dtype)  # num_nodes X batch_size X hidden_dim
 
         for n in range(self.max_nodes):
+            # >>> o_ids = torch.tensor([[1, 2, 99, 3, 99, 123]])
+            # >>> torch.cumsum((o_ids == 99), 1)
+            # >>> tensor([[0, 0, 1, 1, 2, 2]])
             mask_node_n = ((torch.cumsum((output_ids == self.node_sep_id), 1) == n) & (output_ids != self.node_sep_id)).unsqueeze(2)
             features_node_n = features*mask_node_n
             sum_features_node_n = torch.cumsum(features_node_n, 1)[:, -1]
@@ -78,6 +83,8 @@ class Grapher(nn.Module):
             seq_len_edge = target_edges.size(3)
             logits_edges = self.edges(features, seq_len_edge)
 
+        logits_positional_distribution = self.positions(features)
+
         return logits_nodes, logits_edges
 
     def sample(self, text, text_mask):
@@ -108,6 +115,8 @@ class Grapher(nn.Module):
             logits_edges = self.edges(features)
         else:
             logits_edges = self.edges(features, seq_len_edge)
+
+        logits_positional_distribution = self.positions(features)
 
         seq_edges = logits_edges.argmax(-1)
 
@@ -221,6 +230,43 @@ class EdgesClass(nn.Module):
         logits = self.layers(hidden)
 
         # num_nodes X num_nodes X batch_size X num_classes
+        all_logits = logits.reshape(num_nodes, num_nodes, batch_size, -1)
+
+        return all_logits
+
+class PositionDistribution(nn.Module):
+    def __init__(self, input_dim, hidden_dim=20, dropout_rate=0.5, num_layers=0):
+        super(PositionDistribution, self).__init__()
+
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.layers = nn.Sequential()
+
+        self.layers.add_module('first', nn.Linear(input_dim, hidden_dim))
+        self.layers.add_module('firstrelu', nn.ReLU())
+        self.layers.add_module('firstdropout', nn.Dropout(dropout_rate))
+        for l in range(num_layers):
+            self.layers.add_module(f'lin{l}', nn.Linear(hidden_dim, hidden_dim))
+            self.layers.add_module(f'relu{l}', nn.ReLU())
+            self.layers.add_module(f'dropout{l}', nn.Dropout(dropout_rate))
+        self.layers.add_module('last', nn.Linear(hidden_dim, 3))
+
+    def forward(self, features):
+        # features: num_nodes X batch_size X hidden_dim
+        num_nodes = features.size(0)
+        batch_size = features.size(1)
+
+        # reshape to matrix
+        # num_nodes_valid X num_nodes_valid X batch_size X hidden_dim
+        feats = features.unsqueeze(0).expand(num_nodes, -1, -1, -1)
+
+        # [featurs[i] - features[j]]: num_nodes_valid*num_nodes_valid*batch_size X hidden_dim
+        hidden = (feats.permute(1, 0, 2, 3) - feats).reshape(-1, self.hidden_dim)
+
+        # logits: num_nodes_valid*num_nodes_valid*batch_size X 3
+        logits = self.layers(hidden)
+
+        # num_nodes X num_nodes X batch_size X 3
         all_logits = logits.reshape(num_nodes, num_nodes, batch_size, -1)
 
         return all_logits

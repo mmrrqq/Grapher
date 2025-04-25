@@ -50,7 +50,7 @@ class GrapherCLI(LightningCLI):
         parser.add_argument("core.pretrained_model", type=str, default="t5-small")
         parser.add_argument("core.version", type=int, default=0)
         parser.add_argument("core.checkpoint_model_id", type=int, default=-1)
-        parser.add_argument("run", type=str, default="train")
+        parser.add_argument("--run", type=str, default="train")
 
         parser.add_lightning_class_args(ModelCheckpoint, "checkpoint")
 
@@ -64,12 +64,12 @@ class GrapherCLI(LightningCLI):
                 "data.num_data_workers": 3,
                 "data.max_nodes": 8,
                 "data.max_edges": 7,
-                "data.batch_size": 10,
+                "data.batch_size": 11,
                 "model.default_seq_len_edge": 20,
                 "model.num_layers": 1,
                 "model.dropout_rate": 0.5,
-                "model.focal_loss_gamma": 0.0,
-                "model.lr": 1e-5,
+                "model.focal_loss_gamma": 3.0,
+                "model.lr": 1e-4,
                 "trainer.default_root_dir": "output",
                 "checkpoint.save_last": True,
                 "checkpoint.save_top_k": -1,
