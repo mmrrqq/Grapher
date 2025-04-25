@@ -100,7 +100,8 @@ class LitGrapher(pl.LightningModule):
         # logits_nodes: batch_size X seq_len_node X vocab_size
         # logits_edges: num_nodes X num_nodes X batch_size X seq_len_edge X vocab_size [FULL]
         # logits_edges: num_nodes X num_nodes X batch_size X num_classes [CLASSES]
-        logits_nodes, logits_edges= self.model(text_input_ids,
+        # logits_spatial: num_nodes X num_nodes X batch_size X num_classes
+        logits_nodes, logits_edges, logits_spatial = self.model(text_input_ids,
                                                text_input_attn_mask,
                                                target_nodes,
                                                target_nodes_mask,

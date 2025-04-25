@@ -83,9 +83,10 @@ class Grapher(nn.Module):
             seq_len_edge = target_edges.size(3)
             logits_edges = self.edges(features, seq_len_edge)
 
-        logits_positional_distribution = self.positions(features)
+        # num_nodes X num_nodes X batch_size X 9
+        logits_spatial = self.positions(features)
 
-        return logits_nodes, logits_edges
+        return logits_nodes, logits_edges, logits_spatial
 
     def sample(self, text, text_mask):
 
@@ -116,9 +117,10 @@ class Grapher(nn.Module):
         else:
             logits_edges = self.edges(features, seq_len_edge)
 
-        logits_positional_distribution = self.positions(features)
+        logits_spatial = self.positions(features)
 
         seq_edges = logits_edges.argmax(-1)
+        
 
         return logits_nodes, seq_nodes, logits_edges, seq_edges
 
@@ -265,10 +267,10 @@ class PositionDistribution(nn.Module):
         # [featurs[i] - features[j]]: num_nodes_valid*num_nodes_valid*batch_size X hidden_dim
         hidden = (feats.permute(1, 0, 2, 3) - feats).reshape(-1, self.hidden_dim)
 
-        # logits: num_nodes_valid*num_nodes_valid*batch_size X 3
+        # logits: num_nodes_valid*num_nodes_valid*batch_size X 9
         logits = self.layers(hidden)
 
-        # num_nodes X num_nodes X batch_size X 3
-        all_logits = logits.reshape(num_nodes, num_nodes, batch_size, -1)
+        # num_nodes*num_nodes X batch_size X 9
+        all_logits = logits.reshape(num_nodes * num_nodes, batch_size, -1)
 
         return all_logits

@@ -3,6 +3,7 @@ import networkx as nx
 from WebNLG_Text_to_triples import Evaluation_script_json
 import os
 from misc.rdf import save_webnlg_rdf
+from torch.distributions import MultivariateNormal
 import json
 
 failed_node = 'failed node'
@@ -35,6 +36,32 @@ def compute_loss(criterion, logits_nodes, logits_edges, target_nodes, target_edg
     loss = loss_nodes + loss_edges
 
     return loss
+
+def compute_loss_spatial_loss(criterion, logits_nodes, logits_edges, logits_spatial, target_nodes, target_edges, target_spatial, edges_as_classes, focal_loss_gamma):
+
+    node_edge_loss = compute_loss(criterion, logits_nodes, logits_edges, target_nodes, target_edges, edges_as_classes, focal_loss_gamma)
+    
+    # TODO: create multivariate gaussian from spatial logits
+    # TODO: compute log_prob
+
+    max_spatial = logits_spatial.max(0)[0]
+
+    # for ref see https://discuss.pytorch.org/t/learn-a-normal-distribution-with-multivariatenormal-loc-covariance-matrix/55237/4
+    # batch_size x 3 each
+    mean, lower, diag = max_spatial.split(3, -1)
+    z = torch.zeros(size=[mean.size(0)], device=mean.device)
+    scale_tril = torch.stack([
+        diag[:, 0], z         , z,
+        lower[:, 0], diag[:, 1], z,
+        lower[:, 1], lower[:, 2], diag[:, 2]
+    ], dim=-1).view(-1, 3, 3)
+
+    dist = MultivariateNormal(loc=mean, scale_tril=scale_tril)
+
+    # target spatial is expected to be of size (batch_size X 3)
+    spatial_loss = dist.log_prob(target_spatial)
+    
+    return node_edge_loss + spatial_loss
 
 
 def decode(cand, bos_token_id, eos_token_id, tokenizer, failed=failed_node):
