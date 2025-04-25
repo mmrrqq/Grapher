@@ -249,7 +249,9 @@ class PositionDistribution(nn.Module):
             self.layers.add_module(f'lin{l}', nn.Linear(hidden_dim, hidden_dim))
             self.layers.add_module(f'relu{l}', nn.ReLU())
             self.layers.add_module(f'dropout{l}', nn.Dropout(dropout_rate))
-        self.layers.add_module('last', nn.Linear(hidden_dim, 3))
+
+        # TODO: output multivariate gaussian given by mean vector (3 dim) and real positive diagonal of L with LL^H = cov
+        self.layers.add_module('last', nn.Linear(hidden_dim, 9))
 
     def forward(self, features):
         # features: num_nodes X batch_size X hidden_dim

@@ -1,0 +1,21 @@
+core:
+  pretrained_model: "t5-small"
+  checkpoint_model_id: -1
+data:
+  batch_size: 11
+  num_data_workers: 4
+model:
+  focal_loss_gamma: 3.0
+  lr: 1e-4
+  dropout_rate: 0.5
+  edges_as_classes: 0
+trainer:
+  accumulate_grad_batches: 10
+  overfit_batches: 0
+  max_epochs: 20
+  num_sanity_val_steps: 0
+  detect_anomaly: True
+  log_every_n_steps: 100
+  val_check_interval: 1.0  
+checkpoint:
+  every_n_train_steps: 1000
