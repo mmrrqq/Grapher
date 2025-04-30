@@ -17,7 +17,8 @@ class Grapher(nn.Module):
                  dropout_rate,
                  num_layers,
                  vocab_size,
-                 bos_token_id
+                 bos_token_id,
+                 spatial_mode = False
                         ):
         super().__init__()
 
@@ -29,14 +30,15 @@ class Grapher(nn.Module):
         self.max_nodes = max_nodes
         self.edges_as_classes = edges_as_classes
         self.node_sep_id = node_sep_id
-        self.default_seq_len_edge = default_seq_len_edge        
+        self.default_seq_len_edge = default_seq_len_edge
+        self.spatial_mode = spatial_mode
 
         if self.edges_as_classes:
             self.edges = EdgesClass(self.hidden_dim, num_classes, dropout_rate, num_layers)
         else:
             self.edges = EdgesGen(self.hidden_dim, vocab_size, bos_token_id)
 
-        self.positions = PositionDistribution(input_dim=self.hidden_dim)
+        self.spatial = SpatialDistribution(input_dim=self.hidden_dim)
 
     def split_nodes(self, output_ids, features):
 
@@ -83,10 +85,12 @@ class Grapher(nn.Module):
             seq_len_edge = target_edges.size(3)
             logits_edges = self.edges(features, seq_len_edge)
 
-        # num_nodes X num_nodes X batch_size X 9
-        logits_spatial = self.positions(features)
+        if self.spatial_mode:
+            # num_nodes X num_nodes X batch_size X 9
+            logits_spatial = self.spatial(features)
+            return logits_nodes, logits_edges, logits_spatial
 
-        return logits_nodes, logits_edges, logits_spatial
+        return logits_nodes, logits_edges
 
     def sample(self, text, text_mask):
 
@@ -117,10 +121,12 @@ class Grapher(nn.Module):
         else:
             logits_edges = self.edges(features, seq_len_edge)
 
-        logits_spatial = self.positions(features)
 
         seq_edges = logits_edges.argmax(-1)
         
+        if self.spatial_mode:
+            logits_spatial = self.spatial(features)
+            # TODO: return ..?!
 
         return logits_nodes, seq_nodes, logits_edges, seq_edges
 
@@ -236,9 +242,9 @@ class EdgesClass(nn.Module):
 
         return all_logits
 
-class PositionDistribution(nn.Module):
+class SpatialDistribution(nn.Module):
     def __init__(self, input_dim, hidden_dim=20, dropout_rate=0.5, num_layers=0):
-        super(PositionDistribution, self).__init__()
+        super(SpatialDistribution, self).__init__()
 
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -265,7 +271,7 @@ class PositionDistribution(nn.Module):
         feats = features.unsqueeze(0).expand(num_nodes, -1, -1, -1)
 
         # [featurs[i] - features[j]]: num_nodes_valid*num_nodes_valid*batch_size X hidden_dim
-        hidden = (feats.permute(1, 0, 2, 3) - feats).reshape(-1, self.hidden_dim)
+        hidden = (feats.permute(1, 0, 2, 3) - feats).reshape(-1, self.input_dim)
 
         # logits: num_nodes_valid*num_nodes_valid*batch_size X 9
         logits = self.layers(hidden)

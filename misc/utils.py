@@ -37,12 +37,13 @@ def compute_loss(criterion, logits_nodes, logits_edges, target_nodes, target_edg
 
     return loss
 
-def compute_loss_spatial_loss(criterion, logits_nodes, logits_edges, logits_spatial, target_nodes, target_edges, target_spatial, edges_as_classes, focal_loss_gamma):
-
-    node_edge_loss = compute_loss(criterion, logits_nodes, logits_edges, target_nodes, target_edges, edges_as_classes, focal_loss_gamma)
-    
-    # TODO: create multivariate gaussian from spatial logits
-    # TODO: compute log_prob
+def compute_spatial_loss(criterion, logits_nodes, logits_edges, logits_spatial, target_nodes, target_edges, target_spatial, edges_as_classes, focal_loss_gamma):
+    # transform to 1x1xbatch_size matrix
+    # for now, transform to directional correlation matrix.. however, I might be able to use this to represent negated relations?!
+    target_node_edge_matrix = torch.zeros((2, 2, target_edges.size(0)), device=target_edges.device, dtype=torch.long) # 2 as max nodes in relation
+    target_node_edge_matrix[0, 1, :] = target_edges
+    # target_edges = target_edges.unsqueeze(dim=0).unsqueeze(dim=0)
+    node_edge_loss = compute_loss(criterion, logits_nodes, logits_edges, target_nodes, target_node_edge_matrix, edges_as_classes, focal_loss_gamma)
 
     max_spatial = logits_spatial.max(0)[0]
 
@@ -50,6 +51,7 @@ def compute_loss_spatial_loss(criterion, logits_nodes, logits_edges, logits_spat
     # batch_size x 3 each
     mean, lower, diag = max_spatial.split(3, -1)
     z = torch.zeros(size=[mean.size(0)], device=mean.device)
+    diag = torch.exp(diag)
     scale_tril = torch.stack([
         diag[:, 0], z         , z,
         lower[:, 0], diag[:, 1], z,
@@ -58,8 +60,10 @@ def compute_loss_spatial_loss(criterion, logits_nodes, logits_edges, logits_spat
 
     dist = MultivariateNormal(loc=mean, scale_tril=scale_tril)
 
+    # TODO: normalize/regularize
+    # TODO: switch to direction+distance representation as Kalmann et al. suggest
     # target spatial is expected to be of size (batch_size X 3)
-    spatial_loss = dist.log_prob(target_spatial)
+    spatial_loss = dist.log_prob(target_spatial).mean()
     
     return node_edge_loss + spatial_loss
 

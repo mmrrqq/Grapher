@@ -1,5 +1,6 @@
 import torch
 from data.dataset import GraphDataModule
+from data.spatial_dataset import SpatialGraphDataModule
 from misc.cli import GrapherCLI
 from model.litgrapher import LitGrapher
 from transformers import T5Tokenizer
@@ -9,9 +10,7 @@ from misc.utils import decode_graph
 
 def main():       
     torch.set_float32_matmul_precision('medium')   
-    cli = GrapherCLI(LitGrapher, GraphDataModule, trainer_defaults={ "callbacks": [RichProgressBar(10)] }, run=False)
-
-    # cli.trainer.callbacks.append(RichProgressBar(10))
+    cli = GrapherCLI(LitGrapher, SpatialGraphDataModule, trainer_defaults={ "callbacks": [RichProgressBar(10)] }, run=False)
 
     args = cli.config
     

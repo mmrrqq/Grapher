@@ -1,6 +1,6 @@
 import torch
 import pytorch_lightning as pl
-from misc.utils import compute_loss, decode_text, decode_graph, compute_scores
+from misc.utils import compute_loss, compute_spatial_loss, decode_text, decode_graph, compute_scores
 import torch.nn.functional as F
 import torch.nn as nn
 import os
@@ -44,6 +44,7 @@ class LitGrapher(pl.LightningModule):
                  num_layers,
                  vocab_size,
                  bos_token_id,
+                 spatial_mode,
                  eos_token_id,
                  nonode_id,
                  noedge_id,
@@ -68,7 +69,8 @@ class LitGrapher(pl.LightningModule):
                         dropout_rate=dropout_rate,
                         num_layers=num_layers,
                         vocab_size=vocab_size,
-                        bos_token_id=bos_token_id)
+                        bos_token_id=bos_token_id,
+                        spatial_mode=spatial_mode)
 
         self.model = model
         self.criterion = {'ce': nn.CrossEntropyLoss(reduction='none'), 'focal': FocalLoss(focal_loss_gamma)}
@@ -95,7 +97,10 @@ class LitGrapher(pl.LightningModule):
         # target_nodes: batch_size X seq_len_node
         # target_edges: num_nodes X num_nodes X batch_size X seq_len_edge [FULL]
         # target_edges: batch_size X num_nodes X num_nodes [CLASSES]
-        text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, target_edges = batch
+        if self.model.spatial_mode:
+            text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, targets_spatial, target_edges = batch
+        else:
+            text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, target_edges = batch
 
         # logits_nodes: batch_size X seq_len_node X vocab_size
         # logits_edges: num_nodes X num_nodes X batch_size X seq_len_edge X vocab_size [FULL]
@@ -106,9 +111,13 @@ class LitGrapher(pl.LightningModule):
                                                target_nodes,
                                                target_nodes_mask,
                                                target_edges)
-
-        loss = compute_loss(self.criterion, logits_nodes, logits_edges, target_nodes,
-                            target_edges, self.edges_as_classes, self.focal_loss_gamma)
+        
+        if self.model.spatial_mode:
+            loss = compute_spatial_loss(self.criterion, logits_nodes, logits_edges, logits_spatial, target_nodes,
+                                        target_edges, targets_spatial, self.edges_as_classes, self.focal_loss_gamma)
+        else:
+            loss = compute_loss(self.criterion, logits_nodes, logits_edges, target_nodes,
+                                target_edges, self.edges_as_classes, self.focal_loss_gamma)
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True, sync_dist=True, batch_size=text_input_ids.size(0))
 
