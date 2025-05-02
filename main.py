@@ -6,7 +6,7 @@ from model.litgrapher import LitGrapher
 from transformers import T5Tokenizer
 import os
 from pytorch_lightning.callbacks import RichProgressBar
-from misc.utils import decode_graph
+from misc.utils import decode_graph, sample_spatial
 
 def main():       
     torch.set_float32_matmul_precision('medium')   
@@ -57,7 +57,14 @@ def main():
 
         text_input_ids, mask = text_tok['input_ids'], text_tok['attention_mask']
 
-        _, seq_nodes, _, seq_edges = grapher.model.sample(text_input_ids, mask)
+        if grapher.model.spatial_mode:            
+            _, seq_nodes, _, seq_edges, spatial = grapher.model.sample(text_input_ids, mask)
+            spatial_reference = sample_spatial(spatial)
+            print("Spatial reference samples:")
+            print(spatial_reference)
+            # TODO: format output
+        else:
+            _, seq_nodes, _, seq_edges = grapher.model.sample(text_input_ids, mask)
 
         dec_graph = decode_graph(tokenizer, grapher.edge_classes, seq_nodes, seq_edges, grapher.edges_as_classes,
                                 grapher.node_sep_id, grapher.max_nodes, grapher.noedge_cl, grapher.noedge_id,

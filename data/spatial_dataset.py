@@ -132,7 +132,7 @@ class SpatialGraphDataset(Dataset):
         self.parse_graph_data()
 
     def __len__(self):
-        return len(self.relations)
+        return len(self.utterances)
 
     def __getitem__(self, index):
         item = (

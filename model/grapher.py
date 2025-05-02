@@ -126,7 +126,7 @@ class Grapher(nn.Module):
         
         if self.spatial_mode:
             logits_spatial = self.spatial(features)
-            # TODO: return ..?!
+            return logits_nodes, seq_nodes, logits_edges, seq_edges, logits_spatial
 
         return logits_nodes, seq_nodes, logits_edges, seq_edges
 
@@ -257,9 +257,8 @@ class SpatialDistribution(nn.Module):
             self.layers.add_module(f'lin{l}', nn.Linear(hidden_dim, hidden_dim))
             self.layers.add_module(f'relu{l}', nn.ReLU())
             self.layers.add_module(f'dropout{l}', nn.Dropout(dropout_rate))
-
-        # TODO: output multivariate gaussian given by mean vector (3 dim) and real positive diagonal of L with LL^H = cov
-        self.layers.add_module('last', nn.Linear(hidden_dim, 9))
+        
+        self.layers.add_module('last', nn.Linear(hidden_dim, 7))
 
     def forward(self, features):
         # features: num_nodes X batch_size X hidden_dim
@@ -273,10 +272,10 @@ class SpatialDistribution(nn.Module):
         # [featurs[i] - features[j]]: num_nodes_valid*num_nodes_valid*batch_size X hidden_dim
         hidden = (feats.permute(1, 0, 2, 3) - feats).reshape(-1, self.input_dim)
 
-        # logits: num_nodes_valid*num_nodes_valid*batch_size X 9
+        # logits: num_nodes_valid*num_nodes_valid*batch_size X 7
         logits = self.layers(hidden)
 
-        # num_nodes*num_nodes X batch_size X 9
+        # num_nodes*num_nodes X batch_size X 7
         all_logits = logits.reshape(num_nodes * num_nodes, batch_size, -1)
 
         return all_logits

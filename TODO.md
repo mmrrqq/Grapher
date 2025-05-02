@@ -1,0 +1,3 @@
+- fix target matrix (currently 2 edges?!)
+    - switch to single target edge instead of matrix
+- log target spatial location in eval

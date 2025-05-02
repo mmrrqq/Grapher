@@ -1,6 +1,6 @@
 import torch
 import pytorch_lightning as pl
-from misc.utils import compute_loss, compute_spatial_loss, decode_text, decode_graph, compute_scores
+from misc.utils import compute_loss, compute_spatial_loss, decode_text, decode_graph, compute_scores, sample_spatial
 import torch.nn.functional as F
 import torch.nn as nn
 import os
@@ -128,15 +128,27 @@ class LitGrapher(pl.LightningModule):
         iteration = self.global_step
         rank = self.global_rank
 
-        text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, target_edges = batch
+        spatial_reference = None
 
-        logits_nodes, seq_nodes, logits_edges, seq_edges = self.model.sample(text_input_ids, text_input_attn_mask)
+        
+        if self.model.spatial_mode:
+            text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, spatial_targets, target_edges = batch
+            _, seq_nodes, _, seq_edges, spatial = self.model.sample(text_input_ids, text_input_attn_mask)
+            spatial_reference = sample_spatial(spatial)
+        else:
+            text_input_ids, text_input_attn_mask, target_nodes, target_nodes_mask, target_edges = batch
+            _, seq_nodes, _, seq_edges = self.model.sample(text_input_ids, text_input_attn_mask)
 
         text_dec = decode_text(self.tokenizer, text_input_ids, self.bos_token_id, self.eos_token_id)
 
         TB_str = []
 
-        dec_target = decode_graph(self.tokenizer, self.edge_classes, target_nodes, target_edges, self.edges_as_classes,
+        target_node_edge_matrix = torch.zeros(
+            (2, 2, target_edges.size(0)), device=target_edges.device, dtype=torch.long
+        )  # 2 as max nodes in relation
+        target_node_edge_matrix[0, 1, :] = target_edges
+
+        dec_target = decode_graph(self.tokenizer, self.edge_classes, target_nodes, target_node_edge_matrix, self.edges_as_classes,
                                   self.node_sep_id, self.max_nodes, self.noedge_cl, self.noedge_id,
                                   self.bos_token_id, self.eos_token_id)
 
@@ -144,6 +156,7 @@ class LitGrapher(pl.LightningModule):
                                 self.node_sep_id, self.max_nodes, self.noedge_cl, self.noedge_id,
                                 self.bos_token_id, self.eos_token_id)
 
+        # TODO: print spatial target
         if batch_idx == 0:
             for b_i in range(len(text_dec)):
                 # ---- ground truth ----
@@ -155,9 +168,13 @@ class LitGrapher(pl.LightningModule):
                 strng = f'{b_i}<br/>' + text_dec[b_i] + '<br/>' \
                         + '-' * 40 + 'target' + '-' * 40 + '<br/>' + gt + '<br/>' \
                         + '-' * 40 + 'predicted' + '-' * 20 + '<br/>' + pr + '<br/>'
+                
+                if spatial_reference is not None:
+                    strng += '-' * 40 + 'spatial' + '-' * 40 + '<br/>' + str(spatial_reference[b_i].tolist()) + '<br/>'
+
                 TB_str.append(strng)
 
-        decodes = {'text_dec': text_dec, 'dec_target': dec_target, 'dec_pred': dec_pred}
+        decodes = {'text_dec': text_dec, 'dec_target': dec_target, 'dec_pred': dec_pred, 'spatial': spatial_reference }
 
         for i, tb_str in enumerate(TB_str):
             self.logger.experiment.add_text(f'{split}_{rank}/{i}', tb_str, iteration)
