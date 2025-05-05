@@ -114,7 +114,7 @@ class LitGrapher(pl.LightningModule):
         
         if self.model.spatial_mode:
             loss = compute_spatial_loss(self.criterion, logits_nodes, logits_edges, logits_spatial, target_nodes,
-                                        target_edges, targets_spatial, self.edges_as_classes, self.focal_loss_gamma)
+                                        target_edges, targets_spatial, self.edges_as_classes, self.focal_loss_gamma, self.noedge_id)
         else:
             loss = compute_loss(self.criterion, logits_nodes, logits_edges, target_nodes,
                                 target_edges, self.edges_as_classes, self.focal_loss_gamma)
@@ -143,8 +143,9 @@ class LitGrapher(pl.LightningModule):
 
         TB_str = []
 
-        target_node_edge_matrix = torch.zeros(
-            (2, 2, target_edges.size(0)), device=target_edges.device, dtype=torch.long
+        # TODO: this is specific to spatial mode
+        target_node_edge_matrix = torch.full(
+            (2, 2, target_edges.size(0)), self.noedge_id, device=target_edges.device, dtype=torch.long
         )  # 2 as max nodes in relation
         target_node_edge_matrix[0, 1, :] = target_edges
 

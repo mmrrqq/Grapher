@@ -57,11 +57,12 @@ def compute_spatial_loss(
     target_spatial,
     edges_as_classes,
     focal_loss_gamma,
+    noedge_id
 ):
     # transform to 1x1xbatch_size matrix
     # for now, transform to directional correlation matrix.. however, I might be able to use this to represent negated relations?!
-    target_node_edge_matrix = torch.zeros(
-        (2, 2, target_edges.size(0)), device=target_edges.device, dtype=torch.long
+    target_node_edge_matrix = torch.full(
+        (2, 2, target_edges.size(0)), noedge_id, device=target_edges.device, dtype=torch.long
     )  # 2 as max nodes in relation
     target_node_edge_matrix[0, 1, :] = target_edges
     # target_edges = target_edges.unsqueeze(dim=0).unsqueeze(dim=0)
