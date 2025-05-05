@@ -171,7 +171,8 @@ class LitGrapher(pl.LightningModule):
                         + '-' * 40 + 'predicted' + '-' * 20 + '<br/>' + pr + '<br/>'
                 
                 if spatial_reference is not None:
-                    strng += '-' * 40 + 'spatial' + '-' * 40 + '<br/>' + str(spatial_reference[b_i].tolist()) + '<br/>'
+                    strng += '-' * 39 + 'spatial target' + '-' * 39 + '<br/>' + str(spatial_targets[b_i].tolist()) + '<br/>'
+                    strng += '-' * 40 + 'spatial pred' + '-' * 40 + '<br/>' + str(spatial_reference[b_i].tolist()) + '<br/>'
 
                 TB_str.append(strng)
 
